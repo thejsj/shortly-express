@@ -19,60 +19,61 @@ app.use(partials());
 // Parse JSON (uniform resource locators)
 app.use(bodyParser.json());
 // Parse forms (signup/login)
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
 app.use(express.static(__dirname + '/public'));
 
 
-app.get('/', 
-function(req, res) {
-  res.render('index');
-});
-
-app.get('/create', 
-function(req, res) {
-  res.render('index');
-});
-
-app.get('/links', 
-function(req, res) {
-  Links.reset().fetch().then(function(links) {
-    res.send(200, links.models);
+app.get('/',
+  function (req, res) {
+    res.render('index');
   });
-});
 
-app.post('/links', 
-function(req, res) {
-  var uri = req.body.url;
+app.get('/create',
+  function (req, res) {
+    res.render('index');
+  });
 
-  if (!util.isValidUrl(uri)) {
-    console.log('Not a valid url: ', uri);
-    return res.send(404);
-  }
+app.get('/links',
+  function (req, res) {
+    Links.reset().fetch().then(function (links) {
+      res.json(links.models);
+    });
+  });
 
-  new Link({ url: uri }).fetch().then(function(found) {
-    if (found) {
-      res.send(200, found.attributes);
-    } else {
-      util.getUrlTitle(uri, function(err, title) {
-        if (err) {
-          console.log('Error reading URL heading: ', err);
-          return res.send(404);
-        }
+app.post('/links',
+  function (req, res) {
+    var uri = req.body.url;
 
-        var link = new Link({
-          url: uri,
-          title: title,
-          base_url: req.headers.origin
-        });
-
-        link.save().then(function(newLink) {
-          Links.add(newLink);
-          res.send(200, newLink);
-        });
-      });
+    if (!util.isValidUrl(uri)) {
+      res.status(404).end();
     }
+    new Link({
+      url: uri
+    }).fetch().then(function (found) {
+      if (found) {
+        res.json(found.attributes);
+      } else {
+        util.getUrlTitle(uri, function (err, title) {
+          if (err) {
+            res.status(404).end();
+          }
+          var link = new Link({
+            url: uri,
+            title: title,
+            base_url: req.headers.origin
+          });
+          console.log('- Added Link -');
+          console.log(link);
+          link.save().then(function (newLink) {
+            Links.add(newLink);
+            res.json(newLink).end();
+          });
+        });
+      }
+    });
   });
-});
 
 /************************************************************/
 // Write your authentication routes here
@@ -86,8 +87,10 @@ function(req, res) {
 // If the short-code doesn't exist, send the user to '/'
 /************************************************************/
 
-app.get('/*', function(req, res) {
-  new Link({ code: req.params[0] }).fetch().then(function(link) {
+app.get('/*', function (req, res) {
+  new Link({
+    code: req.params[0]
+  }).fetch().then(function (link) {
     if (!link) {
       res.redirect('/');
     } else {
@@ -95,12 +98,12 @@ app.get('/*', function(req, res) {
         link_id: link.get('id')
       });
 
-      click.save().then(function() {
+      click.save().then(function () {
         db.knex('urls')
           .where('code', '=', link.get('code'))
           .update({
             visits: link.get('visits') + 1,
-          }).then(function() {
+          }).then(function () {
             return res.redirect(link.get('url'));
           });
       });
