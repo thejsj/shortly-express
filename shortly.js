@@ -2,7 +2,7 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
-
+var session = require('express-session');
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -10,8 +10,15 @@ var User = require('./app/models/user');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
+var authRoutes = require('./app/routes/auth');
 
 var app = express();
+
+app.use(session({
+  secret: 'hiphipjorge',
+  resave: false,
+  saveUninitialized: true
+}));
 
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
@@ -24,18 +31,21 @@ app.use(bodyParser.urlencoded({
 }));
 app.use(express.static(__dirname + '/public'));
 
-
+// If Authenticated
 app.get('/',
+  authRoutes.redirectToLoginPage,
   function (req, res) {
     res.render('index');
   });
 
 app.get('/create',
+  authRoutes.redirectToLoginPage,
   function (req, res) {
     res.render('index');
   });
 
 app.get('/links',
+  authRoutes.redirectToLoginPage,
   function (req, res) {
     Links.reset().fetch().then(function (links) {
       res.json(links.models);
@@ -45,7 +55,6 @@ app.get('/links',
 app.post('/links',
   function (req, res) {
     var uri = req.body.url;
-
     if (!util.isValidUrl(uri)) {
       res.status(404).end();
     }
@@ -53,7 +62,7 @@ app.post('/links',
       url: uri
     }).fetch().then(function (found) {
       if (found) {
-        res.json(found.attributes);
+        res.json(found.attributes).end();
       } else {
         util.getUrlTitle(uri, function (err, title) {
           if (err) {
@@ -64,8 +73,6 @@ app.post('/links',
             title: title,
             base_url: req.headers.origin
           });
-          console.log('- Added Link -');
-          console.log(link);
           link.save().then(function (newLink) {
             Links.add(newLink);
             res.json(newLink).end();
@@ -79,6 +86,19 @@ app.post('/links',
 // Write your authentication routes here
 /************************************************************/
 
+app.get('/login',
+  function (req, res) {
+    res.render('login');
+  });
+
+app.post('/login', authRoutes.loginHandler);
+
+app.get('/login',
+  function (req, res) {
+    res.render('signup');
+  });
+
+app.post('/signup', authRoutes.signUpHandler);
 
 
 /************************************************************/
